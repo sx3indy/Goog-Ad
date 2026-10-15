@@ -1,0 +1,56 @@
+{
+  "name": "goog-ad",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --use-env-proxy node_modules/next/dist/bin/next dev --hostname 127.0.0.1",
+    "dev:up": "tsx scripts/dev-up.ts",
+    "build": "next build",
+    "start": "node --use-env-proxy node_modules/next/dist/bin/next start --hostname 127.0.0.1",
+    "typecheck": "tsc --noEmit",
+    "db:start": "tsx scripts/database.ts",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:seed": "tsx scripts/seed.ts",
+    "worker": "tsx scripts/worker.ts",
+    "worker:live": "node --use-env-proxy --import tsx scripts/live-worker.ts",
+    "test": "tsx --test tests/*.test.ts",
+    "test:integration": "tsx --test tests/integration/*.test.ts",
+    "test:browser": "playwright test",
+    "contracts:generate": "tsx scripts/contracts.ts",
+    "smoke": "tsx scripts/smoke.ts",
+    "provision": "tsx scripts/provision.ts",
+    "start:live": "node --use-env-proxy --import tsx scripts/start-live.ts",
+    "deploy:check": "node --use-env-proxy --import tsx scripts/deployment-check.ts",
+    "db:provision-role": "node --use-env-proxy --import tsx scripts/provision-role.ts",
+    "hosting": "node --use-env-proxy --import tsx scripts/hosting.ts",
+    "container:build": "node scripts/container-build.mjs"
+  },
+  "dependencies": {
+    "@clerk/nextjs": "^7.0.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.223.0",
+    "@opentelemetry/sdk-node": "^0.223.0",
+    "google-auth-library": "^11.3.0",
+    "lucide-react": "^0.577.0",
+    "next": "^16.4.0",
+    "pg": "^8.16.3",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tsx": "^4.23.15",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@tailwindcss/postcss": "^4.2.1",
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.15.5",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "embedded-postgres": "17.9.0-beta.17",
+    "tailwindcss": "^4.2.1",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": "24.x"
+  }
+}

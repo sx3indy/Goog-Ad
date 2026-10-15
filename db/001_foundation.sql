@@ -1,0 +1,46 @@
+CREATE TABLE IF NOT EXISTS schema_migrations(version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE tenants(id uuid PRIMARY KEY, name text NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE users(id uuid PRIMARY KEY, clerk_id text UNIQUE, display_name text NOT NULL);
+CREATE TABLE memberships(tenant_id uuid NOT NULL REFERENCES tenants,id uuid PRIMARY KEY, user_id uuid NOT NULL REFERENCES users, role text NOT NULL CHECK(role IN ('viewer','analyst','approver','owner')), UNIQUE(tenant_id,user_id));
+CREATE TABLE ad_accounts(tenant_id uuid NOT NULL REFERENCES tenants,id uuid PRIMARY KEY,customer_id text NOT NULL CHECK(customer_id ~ '^[0-9]{10}$'),name text NOT NULL,currency text NOT NULL DEFAULT 'USD',timezone text NOT NULL DEFAULT 'America/New_York',connection_status text NOT NULL DEFAULT 'demo', UNIQUE(tenant_id,customer_id));
+CREATE TABLE account_policies(tenant_id uuid NOT NULL, id uuid PRIMARY KEY, customer_id text NOT NULL,version text NOT NULL,document jsonb NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(tenant_id,customer_id,version),FOREIGN KEY(tenant_id,customer_id) REFERENCES ad_accounts(tenant_id,customer_id));
+CREATE TABLE account_controls(tenant_id uuid NOT NULL,id uuid PRIMARY KEY,customer_id text NOT NULL,killed boolean NOT NULL DEFAULT false,updated_at timestamptz NOT NULL DEFAULT now(),UNIQUE(tenant_id,customer_id),FOREIGN KEY(tenant_id,customer_id) REFERENCES ad_accounts(tenant_id,customer_id));
+CREATE TABLE campaign_snapshots(tenant_id uuid NOT NULL,id uuid PRIMARY KEY,customer_id text NOT NULL,resource_name text NOT NULL,name text NOT NULL,observed_at timestamptz NOT NULL,source_at timestamptz NOT NULL,account_local_date date NOT NULL,currency text NOT NULL,complete boolean NOT NULL,attribution_mature boolean NOT NULL,metrics jsonb NOT NULL,state jsonb NOT NULL,FOREIGN KEY(tenant_id,customer_id) REFERENCES ad_accounts(tenant_id,customer_id));
+CREATE INDEX snapshots_latest ON campaign_snapshots(tenant_id,customer_id,resource_name,observed_at DESC);
+CREATE TABLE demo_resource_state(tenant_id uuid NOT NULL,id uuid PRIMARY KEY,customer_id text NOT NULL,resource_name text NOT NULL,state jsonb NOT NULL,UNIQUE(tenant_id,customer_id,resource_name));
+CREATE TABLE metric_observations(tenant_id uuid NOT NULL,id uuid PRIMARY KEY,snapshot_id uuid NOT NULL REFERENCES campaign_snapshots,metric text NOT NULL,value numeric NOT NULL,currency text,observed_at timestamptz NOT NULL);
+CREATE TABLE decision_proposals(tenant_id uuid NOT NULL,id uuid PRIMARY KEY,customer_id text NOT NULL,resource_name text NOT NULL,proposal jsonb NOT NULL,status text NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','rejected','queued','verified','aborted','quarantined')),created_at timestamptz NOT NULL DEFAULT now(),idempotency_key text NOT NULL,UNIQUE(tenant_id,idempotency_key));
+CREATE TABLE evidence_records(tenant_id uuid NOT NULL,id uuid PRIMARY KEY,proposal_id uuid NOT NULL REFERENCES decision_proposals,snapshot_id uuid NOT NULL REFERENCES campaign_snapshots,evidence jsonb NOT NULL);
+CREATE TABLE approval_events(tenant_id uuid NOT NULL,id uuid PRIMARY KEY,proposal_id uuid NOT NULL REFERENCES decision_proposals,actor_id uuid NOT NULL REFERENCES users,decision text NOT NULL CHECK(decision IN ('approved','rejected')),policy_version text NOT NULL,created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE mutation_commands(tenant_id uuid NOT NULL,id uuid PRIMARY KEY,proposal_id uuid NOT NULL REFERENCES decision_proposals,resource_name text NOT NULL,idempotency_key text NOT NULL,status text NOT NULL DEFAULT 'queued' CHECK(status IN ('queued','verified','aborted','quarantined')),attempt_count integer NOT NULL DEFAULT 0,available_at timestamptz NOT NULL DEFAULT now(),lease_until timestamptz,created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(tenant_id,idempotency_key),UNIQUE(proposal_id));
+CREATE INDEX queue_ready ON mutation_commands(tenant_id,available_at) WHERE status='queued';
+CREATE TABLE mutation_attempts(tenant_id uuid NOT NULL,id uuid PRIMARY KEY,command_id uuid NOT NULL REFERENCES mutation_commands,attempt integer NOT NULL,request_id text,outcome text NOT NULL,metadata jsonb NOT NULL DEFAULT '{}',created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE verification_results(tenant_id uuid NOT NULL,id uuid PRIMARY KEY,command_id uuid NOT NULL REFERENCES mutation_commands,matched boolean NOT NULL,observed_state jsonb NOT NULL,created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE conversion_events(tenant_id uuid NOT NULL,id uuid PRIMARY KEY,customer_id text NOT NULL,external_id text NOT NULL,event_type text NOT NULL,event_time timestamptz NOT NULL,ingested_at timestamptz NOT NULL DEFAULT now(),correction_at timestamptz,upload_status text NOT NULL DEFAULT 'not_uploaded',consent boolean NOT NULL DEFAULT false,UNIQUE(tenant_id,external_id));
+CREATE TABLE crm_outcomes(tenant_id uuid NOT NULL,id uuid PRIMARY KEY,customer_id text NOT NULL,external_id text NOT NULL,stage text NOT NULL CHECK(stage IN ('inquiry','qualified','tour','move_in','paid','canceled')),finalized boolean NOT NULL,revenue_micros bigint NOT NULL DEFAULT 0,cost_micros bigint NOT NULL DEFAULT 0,currency text NOT NULL,event_time timestamptz NOT NULL,ingested_at timestamptz NOT NULL DEFAULT now(),UNIQUE(tenant_id,external_id));
+CREATE TABLE experiments(tenant_id uuid NOT NULL,id uuid PRIMARY KEY,name text NOT NULL,hypothesis text NOT NULL,status text NOT NULL DEFAULT 'draft',protocol jsonb NOT NULL,created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE alerts(tenant_id uuid NOT NULL,id uuid PRIMARY KEY,customer_id text NOT NULL,severity text NOT NULL,message text NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),resolved_at timestamptz);
+CREATE TABLE audit_events(tenant_id uuid NOT NULL,id uuid PRIMARY KEY,actor_id text NOT NULL,event_type text NOT NULL,resource_id text NOT NULL,details jsonb NOT NULL,created_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX audit_timeline ON audit_events(tenant_id,created_at DESC);
+
+CREATE FUNCTION reject_immutable_change() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'Immutable record: append a correction instead'; END $$;
+CREATE TRIGGER audit_immutable BEFORE UPDATE OR DELETE ON audit_events FOR EACH ROW EXECUTE FUNCTION reject_immutable_change();
+CREATE TRIGGER snapshots_immutable BEFORE UPDATE OR DELETE ON campaign_snapshots FOR EACH ROW EXECUTE FUNCTION reject_immutable_change();
+CREATE TRIGGER policies_immutable BEFORE UPDATE OR DELETE ON account_policies FOR EACH ROW EXECUTE FUNCTION reject_immutable_change();
+DO $$ DECLARE t text; BEGIN
+  FOREACH t IN ARRAY ARRAY['memberships','ad_accounts','account_policies','account_controls','campaign_snapshots','demo_resource_state','metric_observations','decision_proposals','evidence_records','approval_events','mutation_commands','mutation_attempts','verification_results','conversion_events','crm_outcomes','experiments','alerts','audit_events'] LOOP
+    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+    EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', t);
+    EXECUTE format('CREATE POLICY tenant_isolation ON %I USING (tenant_id::text = current_setting(''app.tenant_id'', true)) WITH CHECK (tenant_id::text = current_setting(''app.tenant_id'', true))', t);
+  END LOOP;
+END $$;
+ALTER TABLE tenants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenants FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON tenants USING(id::text=current_setting('app.tenant_id',true));
+GRANT USAGE ON SCHEMA public TO ads_app;
+GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA public TO ads_app;
+REVOKE UPDATE,DELETE ON audit_events,campaign_snapshots,account_policies FROM ads_app;
+REVOKE ALL ON users FROM ads_app;
+GRANT SELECT ON users TO ads_app;
+REVOKE INSERT,UPDATE,DELETE ON memberships,tenants,ad_accounts FROM ads_app;
+INSERT INTO schema_migrations(version) VALUES('001_foundation');

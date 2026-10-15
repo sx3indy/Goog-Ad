@@ -1,0 +1,22 @@
+CREATE TABLE integration_runs(tenant_id uuid NOT NULL,id uuid PRIMARY KEY,customer_id text NOT NULL,provider text NOT NULL,status text NOT NULL CHECK(status IN ('running','completed','failed')),idempotency_key text NOT NULL,started_at timestamptz NOT NULL DEFAULT now(),completed_at timestamptz,summary jsonb NOT NULL DEFAULT '{}',UNIQUE(tenant_id,idempotency_key),FOREIGN KEY(tenant_id,customer_id) REFERENCES ad_accounts(tenant_id,customer_id));
+CREATE INDEX integrations_recent ON integration_runs(tenant_id,customer_id,provider,started_at DESC);
+GRANT UPDATE(name,timezone,connection_status) ON ad_accounts TO ads_app;
+ALTER TABLE integration_runs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE integration_runs FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON integration_runs USING(tenant_id::text=current_setting('app.tenant_id',true)) WITH CHECK(tenant_id::text=current_setting('app.tenant_id',true));
+GRANT SELECT,INSERT,UPDATE ON integration_runs TO ads_app;
+CREATE TABLE outcome_history(tenant_id uuid NOT NULL,id uuid PRIMARY KEY,outcome_id uuid NOT NULL,external_id text NOT NULL,stage text NOT NULL,finalized boolean NOT NULL,revenue_micros bigint NOT NULL,cost_micros bigint NOT NULL,currency text NOT NULL,event_time timestamptz NOT NULL,ingested_at timestamptz NOT NULL DEFAULT now());
+ALTER TABLE crm_outcomes ADD UNIQUE(tenant_id,id);
+ALTER TABLE outcome_history ADD FOREIGN KEY(tenant_id,outcome_id) REFERENCES crm_outcomes(tenant_id,id);
+ALTER TABLE outcome_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE outcome_history FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON outcome_history USING(tenant_id::text=current_setting('app.tenant_id',true)) WITH CHECK(tenant_id::text=current_setting('app.tenant_id',true));
+GRANT SELECT,INSERT ON outcome_history TO ads_app;
+CREATE TRIGGER immutable_history BEFORE UPDATE OR DELETE ON outcome_history FOR EACH ROW EXECUTE FUNCTION reject_immutable_change();
+CREATE FUNCTION capture_outcome_history() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+ INSERT INTO outcome_history(tenant_id,id,outcome_id,external_id,stage,finalized,revenue_micros,cost_micros,currency,event_time) VALUES(NEW.tenant_id,gen_random_uuid(),NEW.id,NEW.external_id,NEW.stage,NEW.finalized,NEW.revenue_micros,NEW.cost_micros,NEW.currency,NEW.event_time);
+ RETURN NEW;
+END $$;
+CREATE TRIGGER append_outcome_history AFTER INSERT OR UPDATE ON crm_outcomes FOR EACH ROW EXECUTE FUNCTION capture_outcome_history();
+INSERT INTO outcome_history(tenant_id,id,outcome_id,external_id,stage,finalized,revenue_micros,cost_micros,currency,event_time) SELECT tenant_id,gen_random_uuid(),id,external_id,stage,finalized,revenue_micros,cost_micros,currency,event_time FROM crm_outcomes;
+INSERT INTO schema_migrations(version) VALUES('005_ingestion_history');

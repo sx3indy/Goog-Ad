@@ -1,0 +1,39 @@
+name: Validate control plane
+on: [push, pull_request]
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: cp .env.example .env.local
+      - run: npm run typecheck && npm test
+      - run: npx playwright install --with-deps chromium
+      - name: Real PostgreSQL integration checks
+        run: |
+          setsid npm run db:start > /tmp/ados-db.log 2>&1 &
+          DB_PID=$!
+          WEB_PID=""
+          trap 'kill -- "-$DB_PID" || true; if [ -n "$WEB_PID" ]; then kill -- "-$WEB_PID" || true; fi' EXIT
+          for attempt in $(seq 1 60); do
+            if grep -q 'Local PostgreSQL ready' /tmp/ados-db.log; then break; fi
+            sleep 1
+          done
+          grep -q 'Local PostgreSQL ready' /tmp/ados-db.log || { cat /tmp/ados-db.log; exit 1; }
+          npm run db:migrate
+          npm run db:seed
+          npm run test:integration
+          npm run build
+          setsid npm run start > /tmp/ados-web.log 2>&1 &
+          WEB_PID=$!
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3000/api/health > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:3000/api/health || { cat /tmp/ados-web.log; exit 1; }
+          npm run test:browser

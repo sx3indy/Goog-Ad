@@ -1,0 +1,20 @@
+ALTER TABLE mutation_commands DROP CONSTRAINT mutation_commands_status_check;
+ALTER TABLE mutation_commands ADD CONSTRAINT mutation_commands_status_check CHECK(status IN ('queued','executing','verified','aborted','quarantined'));
+ALTER TABLE decision_proposals DROP CONSTRAINT decision_proposals_status_check;
+ALTER TABLE decision_proposals ADD CONSTRAINT decision_proposals_status_check CHECK(status IN ('pending','rejected','queued','executing','verified','aborted','quarantined'));
+ALTER TABLE mutation_commands ADD COLUMN lease_owner uuid;
+ALTER TABLE mutation_commands ADD COLUMN ever_dispatched boolean NOT NULL DEFAULT false;
+CREATE INDEX queue_recovery ON mutation_commands(tenant_id,lease_until) WHERE status='executing';
+CREATE TABLE execution_gates(tenant_id uuid NOT NULL,id uuid PRIMARY KEY,customer_id text NOT NULL,api_version text NOT NULL,enabled boolean NOT NULL DEFAULT false,validation_request_id text NOT NULL,validated_at timestamptz NOT NULL,expires_at timestamptz NOT NULL,UNIQUE(tenant_id,customer_id),FOREIGN KEY(tenant_id,customer_id) REFERENCES ad_accounts(tenant_id,customer_id));
+ALTER TABLE execution_gates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE execution_gates FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON execution_gates USING(tenant_id::text=current_setting('app.tenant_id',true)) WITH CHECK(tenant_id::text=current_setting('app.tenant_id',true));
+GRANT SELECT ON execution_gates TO ads_app;
+CREATE TABLE tenant_identities(clerk_org_id text PRIMARY KEY,tenant_id uuid NOT NULL UNIQUE REFERENCES tenants);
+GRANT SELECT ON tenant_identities TO ads_app;
+CREATE FUNCTION preserve_proposal_contract() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+ IF NEW.proposal IS DISTINCT FROM OLD.proposal OR NEW.tenant_id IS DISTINCT FROM OLD.tenant_id OR NEW.customer_id IS DISTINCT FROM OLD.customer_id OR NEW.resource_name IS DISTINCT FROM OLD.resource_name OR NEW.idempotency_key IS DISTINCT FROM OLD.idempotency_key THEN RAISE EXCEPTION 'Proposal contract is immutable'; END IF;
+ RETURN NEW;
+END $$;
+CREATE TRIGGER proposal_contract_immutable BEFORE UPDATE ON decision_proposals FOR EACH ROW EXECUTE FUNCTION preserve_proposal_contract();
+INSERT INTO schema_migrations(version) VALUES('004_external_execution');

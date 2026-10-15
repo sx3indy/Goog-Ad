@@ -1,0 +1,964 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AdOS control plane",
+    "version": "0.1.0"
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:3000",
+      "description": "Local demo only"
+    }
+  ],
+  "security": [
+    {
+      "ClerkSession": []
+    }
+  ],
+  "paths": {
+    "/api/health": {
+      "get": {
+        "summary": "Database/identity readiness; not live integration certification",
+        "responses": {
+          "200": {
+            "description": "Ready"
+          },
+          "503": {
+            "description": "Unavailable"
+          }
+        }
+      }
+    },
+    "/api/console": {
+      "get": {
+        "summary": "Tenant-scoped performance and control-plane view",
+        "responses": {
+          "200": {
+            "description": "Successful operation"
+          },
+          "400": {
+            "description": "Invalid strict-schema input"
+          },
+          "401": {
+            "description": "Missing verified identity"
+          },
+          "403": {
+            "description": "Role, tenant, or origin rejected"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "Duplicate or conflicting operation"
+          },
+          "413": {
+            "description": "Body exceeds 32 KiB"
+          },
+          "415": {
+            "description": "JSON required"
+          },
+          "422": {
+            "description": "Policy or outcome validation failed"
+          },
+          "429": {
+            "description": "60 writes per actor per minute exceeded"
+          },
+          "503": {
+            "description": "Service unavailable or integration disabled"
+          }
+        }
+      },
+      "post": {
+        "summary": "Strict control operation; approved origin and JSON required",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
+                        "const": "approve"
+                      },
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      }
+                    },
+                    "required": [
+                      "action",
+                      "id"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
+                        "const": "reject"
+                      },
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      }
+                    },
+                    "required": [
+                      "action",
+                      "id"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
+                        "const": "kill"
+                      },
+                      "customerId": {
+                        "type": "string",
+                        "pattern": "^\\d{10}$"
+                      },
+                      "killed": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "action",
+                      "customerId",
+                      "killed"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
+                        "const": "refresh"
+                      },
+                      "customerId": {
+                        "type": "string",
+                        "pattern": "^\\d{10}$"
+                      }
+                    },
+                    "required": [
+                      "action",
+                      "customerId"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
+                        "const": "run"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
+                        "const": "propose"
+                      },
+                      "proposal": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "tenantId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "customerId": {
+                            "type": "string",
+                            "pattern": "^\\d{10}$"
+                          },
+                          "resourceName": {
+                            "type": "string",
+                            "pattern": "^customers\\/\\d{10}\\/campaigns\\/\\d+$"
+                          },
+                          "action": {
+                            "type": "string",
+                            "enum": [
+                              "PAUSE_CAMPAIGN",
+                              "UPDATE_BUDGET",
+                              "PROPOSE_NEGATIVE",
+                              "UPDATE_BID_TARGET",
+                              "CREATE_AD_DRAFT"
+                            ]
+                          },
+                          "observedAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                          },
+                          "evidenceWindow": {
+                            "type": "object",
+                            "properties": {
+                              "start": {
+                                "type": "string",
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                              },
+                              "end": {
+                                "type": "string",
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                              }
+                            },
+                            "required": [
+                              "start",
+                              "end"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "evidence": {
+                            "minItems": 1,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "metric": {
+                                  "type": "string"
+                                },
+                                "value": {
+                                  "type": "number"
+                                },
+                                "sampleSize": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "sourceSnapshotId": {
+                                  "type": "string",
+                                  "format": "uuid",
+                                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                },
+                                "attributionMature": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "metric",
+                                "value",
+                                "sampleSize",
+                                "sourceSnapshotId",
+                                "attributionMature"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "expectedImpact": {
+                            "type": "object",
+                            "properties": {
+                              "metric": {
+                                "type": "string"
+                              },
+                              "estimate": {
+                                "type": "number"
+                              },
+                              "lowerBound": {
+                                "type": "number"
+                              },
+                              "upperBound": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "metric",
+                              "estimate",
+                              "lowerBound",
+                              "upperBound"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "mutation": {
+                            "type": "object",
+                            "properties": {
+                              "before": {
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {}
+                              },
+                              "after": {
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {}
+                              }
+                            },
+                            "required": [
+                              "before",
+                              "after"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "policyVersion": {
+                            "type": "string"
+                          },
+                          "modelVersion": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "expiresAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                          },
+                          "idempotencyKey": {
+                            "type": "string",
+                            "minLength": 8,
+                            "maxLength": 200
+                          },
+                          "title": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          },
+                          "explanation": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2000
+                          },
+                          "origin": {
+                            "type": "string",
+                            "enum": [
+                              "diagnostic",
+                              "operator",
+                              "model"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "tenantId",
+                          "customerId",
+                          "resourceName",
+                          "action",
+                          "observedAt",
+                          "evidenceWindow",
+                          "evidence",
+                          "expectedImpact",
+                          "mutation",
+                          "policyVersion",
+                          "modelVersion",
+                          "expiresAt",
+                          "idempotencyKey",
+                          "title",
+                          "explanation",
+                          "origin"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "action",
+                      "proposal"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
+                        "const": "outcome"
+                      },
+                      "outcome": {
+                        "type": "object",
+                        "properties": {
+                          "customerId": {
+                            "type": "string",
+                            "pattern": "^\\d{10}$"
+                          },
+                          "externalId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          },
+                          "stage": {
+                            "type": "string",
+                            "enum": [
+                              "inquiry",
+                              "qualified",
+                              "tour",
+                              "move_in",
+                              "paid",
+                              "canceled"
+                            ]
+                          },
+                          "finalized": {
+                            "type": "boolean"
+                          },
+                          "revenueMicros": {
+                            "type": "string",
+                            "pattern": "^(0|[1-9]\\d{0,17})$"
+                          },
+                          "costMicros": {
+                            "type": "string",
+                            "pattern": "^(0|[1-9]\\d{0,17})$"
+                          },
+                          "currency": {
+                            "type": "string",
+                            "pattern": "^[A-Z]{3}$"
+                          },
+                          "eventTime": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                          },
+                          "sourceUpdatedAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                          },
+                          "correction": {
+                            "default": false,
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "customerId",
+                          "externalId",
+                          "stage",
+                          "finalized",
+                          "revenueMicros",
+                          "costMicros",
+                          "currency",
+                          "eventTime"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "action",
+                      "outcome"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
+                        "const": "sync"
+                      },
+                      "customerId": {
+                        "type": "string",
+                        "pattern": "^\\d{10}$"
+                      },
+                      "provider": {
+                        "type": "string",
+                        "enum": [
+                          "google_ads",
+                          "hubspot",
+                          "ga4",
+                          "warehouse",
+                          "models"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "action",
+                      "customerId",
+                      "provider"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
+                        "const": "policy"
+                      },
+                      "customerId": {
+                        "type": "string",
+                        "pattern": "^\\d{10}$"
+                      },
+                      "policy": {
+                        "type": "object",
+                        "properties": {
+                          "autonomy": {
+                            "type": "string",
+                            "enum": [
+                              "L0",
+                              "L1",
+                              "L2",
+                              "L3",
+                              "L4"
+                            ]
+                          },
+                          "dailyPlannedMicros": {
+                            "type": "string",
+                            "pattern": "^(0|[1-9][0-9]{0,17})$"
+                          },
+                          "maxReductionPercent": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 10
+                          },
+                          "freshnessMinutes": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 180
+                          },
+                          "minSampleSize": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 9007199254740991
+                          },
+                          "allowedActions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "PAUSE_CAMPAIGN",
+                                "UPDATE_BUDGET"
+                              ]
+                            }
+                          },
+                          "protectedTerms": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1
+                            }
+                          }
+                        },
+                        "required": [
+                          "autonomy",
+                          "dailyPlannedMicros",
+                          "maxReductionPercent",
+                          "freshnessMinutes",
+                          "minSampleSize",
+                          "allowedActions",
+                          "protectedTerms"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "action",
+                      "customerId",
+                      "policy"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful operation"
+          },
+          "400": {
+            "description": "Invalid strict-schema input"
+          },
+          "401": {
+            "description": "Missing verified identity"
+          },
+          "403": {
+            "description": "Role, tenant, or origin rejected"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "Duplicate or conflicting operation"
+          },
+          "413": {
+            "description": "Body exceeds 32 KiB"
+          },
+          "415": {
+            "description": "JSON required"
+          },
+          "422": {
+            "description": "Policy or outcome validation failed"
+          },
+          "429": {
+            "description": "60 writes per actor per minute exceeded"
+          },
+          "503": {
+            "description": "Service unavailable or integration disabled"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ClerkSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__session",
+        "description": "Clerk-verified session in live mode; local identity in explicitly configured loopback demo"
+      }
+    },
+    "schemas": {
+      "DecisionProposal": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "tenantId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "customerId": {
+            "type": "string",
+            "pattern": "^\\d{10}$"
+          },
+          "resourceName": {
+            "type": "string",
+            "pattern": "^customers\\/\\d{10}\\/campaigns\\/\\d+$"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "PAUSE_CAMPAIGN",
+              "UPDATE_BUDGET",
+              "PROPOSE_NEGATIVE",
+              "UPDATE_BID_TARGET",
+              "CREATE_AD_DRAFT"
+            ]
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "evidenceWindow": {
+            "type": "object",
+            "properties": {
+              "start": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "end": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              }
+            },
+            "required": [
+              "start",
+              "end"
+            ],
+            "additionalProperties": false
+          },
+          "evidence": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "metric": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "number"
+                },
+                "sampleSize": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "sourceSnapshotId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "attributionMature": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "metric",
+                "value",
+                "sampleSize",
+                "sourceSnapshotId",
+                "attributionMature"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "expectedImpact": {
+            "type": "object",
+            "properties": {
+              "metric": {
+                "type": "string"
+              },
+              "estimate": {
+                "type": "number"
+              },
+              "lowerBound": {
+                "type": "number"
+              },
+              "upperBound": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "metric",
+              "estimate",
+              "lowerBound",
+              "upperBound"
+            ],
+            "additionalProperties": false
+          },
+          "mutation": {
+            "type": "object",
+            "properties": {
+              "before": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              },
+              "after": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              }
+            },
+            "required": [
+              "before",
+              "after"
+            ],
+            "additionalProperties": false
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "modelVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 200
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "explanation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "diagnostic",
+              "operator",
+              "model"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "tenantId",
+          "customerId",
+          "resourceName",
+          "action",
+          "observedAt",
+          "evidenceWindow",
+          "evidence",
+          "expectedImpact",
+          "mutation",
+          "policyVersion",
+          "modelVersion",
+          "expiresAt",
+          "idempotencyKey",
+          "title",
+          "explanation",
+          "origin"
+        ],
+        "additionalProperties": false
+      },
+      "AccountPolicy": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string",
+            "minLength": 1
+          },
+          "autonomy": {
+            "type": "string",
+            "enum": [
+              "L0",
+              "L1",
+              "L2",
+              "L3",
+              "L4"
+            ]
+          },
+          "dailyPlannedMicros": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,17})$"
+          },
+          "maxReductionPercent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10
+          },
+          "freshnessMinutes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 180
+          },
+          "minSampleSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "allowedActions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "PAUSE_CAMPAIGN",
+                "UPDATE_BUDGET"
+              ]
+            }
+          },
+          "protectedTerms": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "killed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "version",
+          "autonomy",
+          "dailyPlannedMicros",
+          "maxReductionPercent",
+          "freshnessMinutes",
+          "minSampleSize",
+          "allowedActions",
+          "protectedTerms",
+          "killed"
+        ],
+        "additionalProperties": false
+      },
+      "CRMOutcome": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "customerId": {
+            "type": "string",
+            "pattern": "^\\d{10}$"
+          },
+          "externalId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "inquiry",
+              "qualified",
+              "tour",
+              "move_in",
+              "paid",
+              "canceled"
+            ]
+          },
+          "finalized": {
+            "type": "boolean"
+          },
+          "revenueMicros": {
+            "type": "string",
+            "pattern": "^(0|[1-9]\\d{0,17})$"
+          },
+          "costMicros": {
+            "type": "string",
+            "pattern": "^(0|[1-9]\\d{0,17})$"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
+          },
+          "eventTime": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "sourceUpdatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "correction": {
+            "default": false,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "customerId",
+          "externalId",
+          "stage",
+          "finalized",
+          "revenueMicros",
+          "costMicros",
+          "currency",
+          "eventTime"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}
